@@ -13,7 +13,23 @@ Module Module1
 
         For Each tablerow As DataRow In tables.Rows
             Console.Out.WriteLine("Table - " & tablerow("table_name"))
-            ExecuteRebuild(tablerow("table_name"))
+
+            Dim RebuildThread As New Rebuilder
+            RebuildThread.TableName = tablerow("table_name")
+            Dim ts As New ThreadStart(AddressOf RebuildThread.ExecuteRebuild)
+            Dim wrkThread As New Thread(ts)
+            RebuildThread.CurrentThread = wrkThread
+            wrkThread.Start()
+            While True
+                Thread.Sleep(15000)
+                If wrkThread.IsAlive Then
+                    Console.Out.WriteLine(tablerow("table_name") & " - rebuild in progress")
+                Else
+                    Exit While
+                End If
+            End While
+
+            'ExecuteRebuild(tablerow("table_name"))
         Next
 
         Console.Out.WriteLine("End Job")
@@ -53,15 +69,24 @@ Module Module1
         Return thisDataTable
     End Function
 
-    Sub ExecuteRebuild(ByVal TableName As String)
-        Dim ThisCmd As System.Data.SqlClient.SqlCommand = SQLCmd()
-        ThisCmd.CommandText = "ALTER INDEX ALL ON " & TableName & " REBUILD" ' WITH (ONLINE = ON)
-        ThisCmd.CommandType = CommandType.Text
-        ThisCmd.ExecuteNonQuery()
-        ThisCmd.Connection.Close()
-        ThisCmd.Connection.Dispose()
-        ThisCmd.Dispose()
-    End Sub
 
+    Class Rebuilder
+        Public TableName As String
+        Public CurrentThread As Thread
+
+        Sub ExecuteRebuild()
+            Dim ThisCmd As System.Data.SqlClient.SqlCommand = SQLCmd()
+            ThisCmd.CommandText = "ALTER INDEX ALL ON " & TableName & " REBUILD" ' WITH (ONLINE = ON)
+            ThisCmd.CommandType = CommandType.Text
+            ThisCmd.ExecuteNonQuery()
+            ThisCmd.Connection.Close()
+            ThisCmd.Connection.Dispose()
+            ThisCmd.Dispose()
+
+            CurrentThread.Abort()
+            CurrentThread = Nothing
+        End Sub
+
+    End Class
 
 End Module
