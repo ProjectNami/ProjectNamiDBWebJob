@@ -362,7 +362,6 @@ Public License instead of this License.
 
 WRITTEN OFFER
 
-The source code for any program binaries or compressed scripts that are
-included with this program can be freely obtained at the following URL:
+The source code for this program can be freely obtained at the following URL:
 
 	https://github.com/ProjectNami/ProjectNamiDBWebJob
