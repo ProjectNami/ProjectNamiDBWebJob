@@ -10,12 +10,14 @@ Module Module1
     Sub Main()
         Console.Out.WriteLine("Begin Job")
         Dim tables As DataTable = GetTables()
+        Dim SqlVer As Integer = GetSqlVer()
 
         For Each tablerow As DataRow In tables.Rows
             Console.Out.WriteLine("Table - " & tablerow("table_name"))
 
             Dim RebuildThread As New Rebuilder
             RebuildThread.TableName = tablerow("table_name")
+            RebuildThread.SqlVer = SqlVer
             Dim ts As New ThreadStart(AddressOf RebuildThread.ExecuteRebuild)
             Dim wrkThread As New Thread(ts)
             RebuildThread.CurrentThread = wrkThread
@@ -28,8 +30,6 @@ Module Module1
                     Exit While
                 End If
             End While
-
-            'ExecuteRebuild(tablerow("table_name"))
         Next
 
         Console.Out.WriteLine("End Job")
@@ -58,7 +58,7 @@ Module Module1
         Dim thisDataTable As New DataTable
         Dim thisCmd As SqlClient.SqlCommand = SQLCmd()
         Dim thisAdapter As New SqlClient.SqlDataAdapter
-        thisCmd.CommandText = "SELECT table_name FROM information_schema.tables order by newid()"
+        thisCmd.CommandText = "SELECT * FROM information_schema.tables where table_type = 'BASE TABLE' order by newid()"
         thisCmd.CommandType = CommandType.Text
         thisAdapter.SelectCommand = thisCmd
         thisAdapter.Fill(thisDataTable)
@@ -69,14 +69,45 @@ Module Module1
         Return thisDataTable
     End Function
 
+    Function GetSqlVer() As Integer
+        Dim thisDataTable As New DataTable
+        Dim thisCmd As SqlClient.SqlCommand = SQLCmd()
+        Dim thisAdapter As New SqlClient.SqlDataAdapter
+        thisCmd.CommandText = "SELECT convert(varchar,SERVERPROPERTY('productversion')) as 'version'"
+        thisCmd.CommandType = CommandType.Text
+        thisAdapter.SelectCommand = thisCmd
+        thisAdapter.Fill(thisDataTable)
+        thisCmd.Connection.Close()
+        thisCmd.Connection.Dispose()
+        thisCmd.Dispose()
+        thisAdapter.Dispose()
+
+        If thisDataTable.Rows.Count <> 1 Then
+            Return 0
+        Else
+            Dim SqlVerString As String() = thisDataTable.Rows(0).Item(0).ToString.Split(".")
+            If Not IsNumeric(SqlVerString(0)) Then
+                Return 0
+            Else
+                Return CLng(SqlVerString(0))
+            End If
+        End If
+
+    End Function
 
     Class Rebuilder
         Public TableName As String
+        Public SqlVer As Integer
         Public CurrentThread As Thread
 
         Sub ExecuteRebuild()
             Dim ThisCmd As System.Data.SqlClient.SqlCommand = SQLCmd()
-            ThisCmd.CommandText = "ALTER INDEX ALL ON " & TableName & " REBUILD" ' WITH (ONLINE = ON)
+            If SqlVer >= 12 Then
+                ThisCmd.CommandText = "ALTER INDEX ALL ON " & TableName & " REBUILD WITH (ONLINE = ON)"
+                Console.Out.WriteLine("Attempting Online Rebuild")
+            Else
+                ThisCmd.CommandText = "ALTER INDEX ALL ON " & TableName & " REBUILD"
+            End If
             ThisCmd.CommandType = CommandType.Text
             ThisCmd.ExecuteNonQuery()
             ThisCmd.Connection.Close()
