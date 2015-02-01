@@ -9,8 +9,11 @@ Module Module1
 
     Sub Main()
         Console.Out.WriteLine("Begin Job")
-        Dim tables As DataTable = GetTables()
         Dim SqlVer As Integer = GetSqlVer()
+        If SqlVer >= 12 Then
+            Console.Out.WriteLine("SQL V12 or greater detected")
+        End If
+        Dim tables As DataTable = GetTables(SqlVer)
 
         For Each tablerow As DataRow In tables.Rows
             Console.Out.WriteLine("Table - " & tablerow("table_name"))
@@ -54,11 +57,15 @@ Module Module1
 
     End Function
 
-    Function GetTables() As DataTable
+    Function GetTables(SqlVer As Integer) As DataTable
         Dim thisDataTable As New DataTable
         Dim thisCmd As SqlClient.SqlCommand = SQLCmd()
         Dim thisAdapter As New SqlClient.SqlDataAdapter
-        thisCmd.CommandText = "SELECT * FROM information_schema.tables where table_type = 'BASE TABLE' order by newid()"
+        If SqlVer >= 12 Then
+            thisCmd.CommandText = "SELECT * FROM information_schema.tables where table_type = 'BASE TABLE' order by table_name"
+        Else
+            thisCmd.CommandText = "SELECT * FROM information_schema.tables where table_type = 'BASE TABLE' order by newid()"
+        End If
         thisCmd.CommandType = CommandType.Text
         thisAdapter.SelectCommand = thisCmd
         thisAdapter.Fill(thisDataTable)
@@ -104,7 +111,6 @@ Module Module1
             Dim ThisCmd As System.Data.SqlClient.SqlCommand = SQLCmd()
             If SqlVer >= 12 Then
                 ThisCmd.CommandText = "ALTER INDEX ALL ON " & TableName & " REBUILD WITH (ONLINE = ON)"
-                Console.Out.WriteLine("Attempting Online Rebuild")
             Else
                 ThisCmd.CommandText = "ALTER INDEX ALL ON " & TableName & " REBUILD"
             End If
